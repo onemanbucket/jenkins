@@ -233,6 +233,33 @@ public class Util {
 
             makeWritable(f.getParentFile());
 
+            
+            // work around for MAX_PATH limitation in windows
+            // Pivots the deep path before recursive delete.
+            // 
+            // See https://issues.jenkins-ci.org/browse/JENKINS-15418 
+            if (Functions.isWindows() && f.getAbsolutePath().length() > 250) {
+                String[] path = f.getAbsolutePath().split("\\\\");
+                StringBuilder pivot = new StringBuilder();
+                for (String pathSegment : path) {
+                    pivot.append(pathSegment);
+                    pivot.append("\\");
+                    if (pivot.length() > 200) {
+                        File pivotFile = new File(pivot.toString());
+                        File dest;
+                        try {
+                            dest = File.createTempFile("hudson", UUID.randomUUID().toString());
+                            dest.delete();
+                        } catch (IOException e) {
+                            throw new IOException("Unable to delete " + f.getPath() + ", cannot create temporary directory.");
+                        }
+                        pivotFile.renameTo(dest);
+                        deleteRecursive(dest);
+                        break;
+                    }
+                }
+            }
+
             if(!f.delete() && f.exists()) {
                 // trouble-shooting.
                 // see http://www.nabble.com/Sometimes-can%27t-delete-files-from-hudson.scm.SubversionSCM%24CheckOutTask.invoke%28%29-tt17333292.html
