@@ -493,7 +493,7 @@ public class FilePathTest extends ChannelTestCase {
             FilePath childInLongPath = longPath.child("file.txt");
             childInLongPath.touch(0);
             
-            File firstDirectory = new File(tmp.getAbsolutePath() + "very");
+            File firstDirectory = new File(tmp.getAbsolutePath() + "/very");
             Util.deleteRecursive(firstDirectory);
             
             assertFalse("Could not delete directory!", firstDirectory.exists());
@@ -501,7 +501,33 @@ public class FilePathTest extends ChannelTestCase {
         } finally {
             Util.deleteRecursive(tmp);
         }
-
+    }
+    
+    public void test() throws Exception {
+    	File tmp = new File("C:/temp/hudson123");
+    	try {
+	    	tmp.mkdir();
+	    	StringBuilder sb = new StringBuilder();
+	        while(sb.length() + tmp.getAbsolutePath().length() < 255 - "very/".length()) {
+	            sb.append("very/");
+	        }
+	        sb.append("pivot/very/very/long/path");
+	        File longFilePath = new File(tmp.getAbsolutePath() + "\\" + sb.toString());
+	        longFilePath.mkdirs();
+	    	System.out.println(longFilePath.getAbsolutePath());
+	    	
+	    	File longFile = new File(longFilePath.getAbsolutePath() + "/" + "hej.txt");
+	    	longFile.createNewFile();
+	    	
+	    	File fp = new File(longFile.getAbsolutePath());
+	    	
+	    	fp.delete();
+	    	
+	    	assertFalse(fp.exists());
+	    	
+    	} finally {
+    		tmp.delete();
+    	}
     }
 
 }

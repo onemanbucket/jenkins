@@ -115,11 +115,6 @@ public class Util {
      * Pattern for capturing variables. Either $xyz or ${xyz}, while ignoring "$$"
       */
     private static final Pattern VARIABLE = Pattern.compile("\\$([A-Za-z0-9_]+|\\{[A-Za-z0-9_]+\\}|\\$)");
-    
-    /**
-     * Windows MAX_PATH limitation
-     */
-    private static final int WINDOWS_MAX_PATH = 255;
 
     /**
      * Replaces the occurrence of '$key' by <tt>properties.get('key')</tt>.
@@ -206,7 +201,7 @@ public class Util {
         if(files==null)
             return;     // the directory didn't exist in the first place
         for (File child : files)
-            deleteRecursiveInternal(child);
+            deleteRecursive(child);
     }
 
     /**
@@ -238,7 +233,6 @@ public class Util {
 
             makeWritable(f.getParentFile());
 
-          
             if(!f.delete() && f.exists()) {
                 // trouble-shooting.
                 // see http://www.nabble.com/Sometimes-can%27t-delete-files-from-hudson.scm.SubversionSCM%24CheckOutTask.invoke%28%29-tt17333292.html
@@ -284,20 +278,8 @@ public class Util {
         }
 
     }
-    
-    public static void deleteRecursive(File dir) throws IOException {
-        // Wrap the deletRecursive call to check that the entry point for the delete call is within windows limits
-        if(Functions.isWindows() && dir.getAbsolutePath().length() >= WINDOWS_MAX_PATH) {
-            throw new IOException("Directory is nested too deeply to be able to delete");
-        }
-        deleteRecursiveInternal(dir);
-    }
 
-    private static void deleteRecursiveInternal(File dir) throws IOException {
-        if(Functions.isWindows() && dir.getAbsolutePath().length() > WINDOWS_MAX_PATH) {
-            pivotSubtreeAndDelete(dir);
-            return;
-        }
+    public static void deleteRecursive(File dir) throws IOException {
         if(!isSymlink(dir))
             deleteContentsRecursive(dir);
         try {
@@ -310,37 +292,6 @@ public class Util {
                 deleteContentsRecursive(dir);
             deleteFile(dir);
         }
-    }
-
-    /**
-     *   work around for MAX_PATH limitation in windows
-     *    Pivots the deep path before recursive delete.
-     *    See https://issues.jenkins-ci.org/browse/JENKINS-15418
-     *    
-     * @param f
-     * @throws IOException
-     */
-    private static void pivotSubtreeAndDelete(File f) throws IOException {
-        if(!Functions.isWindows())
-            throw new RuntimeException("Cannot only use workaround for JENKINS-15481 on windows!");
-
-        File tempDir = createTempDir();
-
-        String[] path = f.getAbsolutePath().split("\\\\");
-        StringBuilder pivot = new StringBuilder();
-        for(int i = 0 ; i < path.length; i++) {
-            if(pivot.length() + path[i].length() < WINDOWS_MAX_PATH) {
-                pivot.append(path[i] + "/");
-            } else {
-                // we hit limit, path[i] is the pivot
-                // move pivot to temp directory
-                File pivotFile = new File(pivot.toString());
-                pivotFile.renameTo(tempDir);
-                break;
-            }
-        }
-        deleteRecursive(tempDir);
-//        deleteRecursive(...); //FIXME 
     }
 
     /*
