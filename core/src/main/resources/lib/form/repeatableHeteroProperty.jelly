@@ -1,7 +1,7 @@
 <!--
 The MIT License
 
-Copyright (c) 2010, CloudBees, Inc.
+Copyright (c) 2012, CloudBees, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@ THE SOFTWARE.
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
   <st:documentation> <![CDATA[
-    Data-bound only version of <f:repeatable> that assumes the type pointed by the property is data-bound as well.
+    Data-bound only version of <f:hetero-list> that assumes the type pointed by the property is data-bound as well.
     The nested property type must be Describable and it needs to have config.jelly.
 
     The nested configuration fragment normally needs to have a delete button by adding a fragment like this:
@@ -37,33 +37,43 @@ THE SOFTWARE.
         </f:entry>
     ]]>
 
-    <st:attribute name="field">
+    <st:attribute name="field" use="required">
       Used for the data binding.
     </st:attribute>
-    <st:attribute name="default">
-      The default value to use for this collection when 'instance[field]' is null.
+    <st:attribute name="addCaption">
+      caption of the 'add' button.
     </st:attribute>
-    <st:attribute name="noAddButton">
-      true if the default 'add' button (that adds a new copy) shouldn't be displayed.
-      When you use this attribute,
+    <st:attribute name="deleteCaption">
+      caption of the 'delete' button.
     </st:attribute>
-    <st:attribute name="add">
-      If specified, this text will replace the standard "Add" text.
+    <st:attribute name="targetType">
+      the type for which descriptors will be configured. Defaults to ${it.class} (optional)
     </st:attribute>
-    <st:attribute name="minimum">
-      At least provide this number of copies initially.
-      minimum="1" is useful to make sure there's always at least one entry for the user to fill in.
+    <st:attribute name="hasHeader">
+      For each item, add a caption from descriptor.getDisplayName().
+      This also activates drag&amp;drop (where the header is a grip), and help text support.
     </st:attribute>
-    <st:attribute name="header">
-      For each item, add this header.
-      This also activates drag&amp;drop (where the header is a grip).
+    <st:attribute name="oneEach">
+      If true, only allow up to one instance per descriptor.
+    </st:attribute>
+    <st:attribute name="menuAlign">
+      Menu alignment against the button. Defaults to tl-bl
+    </st:attribute>
+    <st:attribute name="honorOrder">
+      If true, insert new addition by default to their 'desired' location, which
+      is the order induced by the descriptors.
     </st:attribute>
   </st:documentation>
 
-
-  <f:repeatable field="${attrs.field}" default="${attrs.default}" noAddButton="${attrs.noAddButton}" header="${attrs.header}" add="${attrs.add}">
-    <table style="width:100%">
-      <st:include page="config.jelly" class="${descriptor.clazz}" />
-    </table>
-  </f:repeatable>
+  <!--
+      first try getFooBarDescriptors() then fall back to automatic inference by type
+  -->
+  <f:hetero-list name="${attrs.field}" items="${instance[attrs.field]}"
+                 descriptors="${descriptor[attrs.field+'Descriptors'] ?: descriptor.getPropertyType(instance,attrs.field).getApplicableItemDescriptors()}"
+                 addCaption="${attrs.addCaption}" deleteCaption="${attrs.deleteCaption}"
+                 hasHeader="${attrs.hasHeader}" honorOrder="${attrs.honorOrder}"
+                 menuAlign="${attrs.menuAlign}" oneEach="${attrs.oneEach}"
+                 targetType="${attrs.targetType}"
+          />
+  <!-- TODO: there should be a mechanism to pass-through map as parameters -->
 </j:jelly>

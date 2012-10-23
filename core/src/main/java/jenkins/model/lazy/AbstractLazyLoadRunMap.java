@@ -95,7 +95,7 @@ import static jenkins.model.lazy.Boundary.*;
  * updating {@link Index#byNumber} and {@link Index#byId}.
  *
  * @author Kohsuke Kawaguchi
- * @since 1.LAZYLOAD
+ * @since 1.485
  */
 public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> implements SortedMap<Integer,R> {
     /**
@@ -123,7 +123,11 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
         private final TreeMap<Integer,BuildReference<R>> byNumber;
 
         /**
-         * Stores the build ID to build number for builds that we already know
+         * Stores the build ID to build number for builds that we already know.
+         *
+         * If we have known load failure of the given ID, we record that in the map
+         * by using the null value (not to be confused with a non-null {@link BuildReference}
+         * with null referent, which just means the record was GCed.)
          */
         private final TreeMap<String,BuildReference<R>> byId;
 
@@ -398,10 +402,21 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
 
         // We know that the build we are looking for exists in [lo,hi)  --- it's "hi)" and not "hi]" because we do +1.
         // we will narrow this down via binary search
+        final int initialSize = idOnDisk.size();
         int lo = idOnDisk.higher(cid);
         int hi = idOnDisk.lower(fid)+1;
 
         final int initialLo = lo, initialHi = hi;
+
+        if (!(0<=lo && lo<=hi && hi<=idOnDisk.size())) {
+            // assertion error, but we are so far unable to get to the bottom of this bug.
+            // but don't let this kill the loading the hard way
+            String msg = String.format(
+                    "Assertion error: failing to load #%d %s: lo=%d,hi=%d,size=%d,size2=%d",
+                    n, d, lo, hi, idOnDisk.size(), initialSize);
+            LOGGER.log(Level.WARNING, msg,new Exception());
+            throw new ArrayIndexOutOfBoundsException(msg);
+        }
 
         while (lo<hi) {
             final int pivot = (lo+hi)/2;
@@ -409,8 +424,8 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
                 // assertion error, but we are so far unable to get to the bottom of this bug.
                 // but don't let this kill the loading the hard way
                 String msg = String.format(
-                        "Assertion error: failing to load #%d %s: lo=%d,hi=%d,pivot=%d,size=%d (initial:lo=%d,hi=%d)",
-                        n, d, lo, hi, pivot, idOnDisk.size(), initialLo, initialHi);
+                        "Assertion error: failing to load #%d %s: lo=%d,hi=%d,pivot=%d,size=%d (initial:lo=%d,hi=%d,size=%d)",
+                        n, d, lo, hi, pivot, idOnDisk.size(), initialLo, initialHi, initialSize);
                 LOGGER.log(Level.WARNING, msg,new Exception());
                 throw new ArrayIndexOutOfBoundsException(msg);
             }
@@ -450,8 +465,8 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
                 // assertion error, but we are so far unable to get to the bottom of this bug.
                 // but don't let this kill the loading the hard way
                 LOGGER.log(Level.WARNING, String.format(
-                        "Assertion error: failing to load #%d %s: lo=%d,hi=%d,size=%d (initial:lo=%d,hi=%d)",
-                        n,d,lo,hi,idOnDisk.size(), initialLo,initialHi),new Exception());
+                        "Assertion error: failing to load #%d %s: lo=%d,hi=%d,size=%d (initial:lo=%d,hi=%d,size=%d)",
+                        n,d,lo,hi,idOnDisk.size(), initialLo,initialHi,initialSize),new Exception());
                 return null;
             }
             return getById(idOnDisk.get(lo-1));
@@ -474,7 +489,11 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
     public R getById(String id) {
         Index snapshot = index;
         if (snapshot.byId.containsKey(id)) {
-            return unwrap(snapshot.byId.get(id));
+            BuildReference<R> ref = snapshot.byId.get(id);
+            if (ref==null)      return null;    // known failure
+            R v = unwrap(ref);
+            if (v!=null)        return v;       // already in memory
+            // otherwise fall through to load
         }
         return load(id,null);
     }
@@ -599,7 +618,14 @@ public abstract class AbstractLazyLoadRunMap<R> extends AbstractMap<Integer,R> i
 
 
     protected R load(String id, Index editInPlace) {
-        return load(new File(dir,id),editInPlace);
+        R v = load(new File(dir, id), editInPlace);
+        if (v==null && editInPlace!=null) {
+            // remember the failure.
+            // if editInPlace==null, we can create a new copy for this, but not sure if it's worth doing,
+            // given that we also update idOnDisk anyway.
+            editInPlace.byId.put(id,null);
+        }
+        return v;
     }
 
     /**
