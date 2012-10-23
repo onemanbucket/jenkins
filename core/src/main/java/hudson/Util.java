@@ -206,7 +206,7 @@ public class Util {
         if(files==null)
             return;     // the directory didn't exist in the first place
         for (File child : files)
-            deleteRecursive(child);
+            deleteRecursiveInternal(child);
     }
 
     /**
@@ -284,8 +284,16 @@ public class Util {
         }
 
     }
-
+    
     public static void deleteRecursive(File dir) throws IOException {
+        // Wrap the deletRecursive call to check that the entry point for the delete call is within windows limits
+        if(Functions.isWindows() && dir.getAbsolutePath().length() >= WINDOWS_MAX_PATH) {
+            throw new IOException("Directory is nested too deeply to be able to delete");
+        }
+        deleteRecursiveInternal(dir);
+    }
+
+    private static void deleteRecursiveInternal(File dir) throws IOException {
         if(Functions.isWindows() && dir.getAbsolutePath().length() > WINDOWS_MAX_PATH) {
             pivotSubtreeAndDelete(dir);
             return;
