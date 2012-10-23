@@ -330,7 +330,7 @@ public class Util {
         StringBuilder pivot = new StringBuilder();
         for(int i = 0 ; i < path.length; i++) {
             if(pivot.length() + path[i].length() < WINDOWS_MAX_PATH) {
-                pivot.append(path[i]);
+                pivot.append(path[i] + "/");
             } else {
                 // we hit limit, path[i] is the pivot
                 // move pivot to temp directory
@@ -340,7 +340,7 @@ public class Util {
             }
         }
         deleteRecursive(tempDir);
-        deleteRecursive(f);
+//        deleteRecursive(...); //FIXME 
     }
 
     /*
