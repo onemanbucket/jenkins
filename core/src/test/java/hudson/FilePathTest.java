@@ -481,9 +481,9 @@ public class FilePathTest extends ChannelTestCase {
         try {
             FilePath d = new FilePath(french, tmp.getPath());
             
-            // construct a very long path with the pivot directory at char 255
+            // construct a very long path
             StringBuilder sb = new StringBuilder();
-            while(sb.length() + tmp.getPath().length() < 255 - "very/".length()) {
+            while(sb.length() + tmp.getPath().length() < 260 - "very/".length()) {
                 sb.append("very/");
             }
             sb.append("pivot/very/very/long/path");
@@ -501,5 +501,28 @@ public class FilePathTest extends ChannelTestCase {
         } finally {
             Util.deleteRecursive(tmp);
         }
+    }
+    
+    @Bug(15418)
+    public void testDeleteLongPathOnWindowsShare() throws Exception {
+//        File tmp = new File("\\\\ERIK-HEMMA\\someshare");
+            FilePath d = new FilePath(french, "\\\\ERIK-HEMMA\\someshare");
+            
+            // construct a very long path
+            StringBuilder sb = new StringBuilder();
+            while(sb.length() + "\\\\ERIK-HEMMA\\someshare".length() < 260 - "very/".length()) {
+                sb.append("very/");
+            }
+            sb.append("pivot/very/very/long/path");
+            
+            FilePath longPath = d.child(sb.toString()); 
+            longPath.mkdirs();
+            FilePath childInLongPath = longPath.child("file.txt");
+            childInLongPath.touch(0);
+            
+            File firstDirectory = new File("\\\\ERIK-HEMMA\\someshare" + "/very");
+            Util.deleteRecursive(firstDirectory);
+            
+            assertFalse("Could not delete directory!", firstDirectory.exists());
     }
 }
